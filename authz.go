@@ -11,7 +11,7 @@ import (
 )
 
 type AuthorizationEngine interface {
-	Authorize(context.Context, *AuthorizationInput) (*AuthorizationResult, error)
+	Authorize(context.Context, map[string]interface{}) (*AuthorizationResult, error)
 }
 
 type AuthorizationResult struct {
@@ -20,11 +20,6 @@ type AuthorizationResult struct {
 	Extensions      map[string]string
 	ValidBefore     uint64
 	ValidAfter      uint64
-}
-type AuthorizationInput struct {
-	Principal    string
-	ThumbPrint   string
-	TicketClaims TicketClaims
 }
 
 type OpenPolicyAgentEngine struct {
@@ -58,19 +53,9 @@ func NewOpenPolicyAgentEngine(file string, ctx context.Context) (*OpenPolicyAgen
 	}, nil
 }
 
-func (engine *OpenPolicyAgentEngine) Authorize(ctx context.Context, input *AuthorizationInput) (*AuthorizationResult, error) {
-	results, err := engine.query.Eval(ctx, rego.EvalInput(map[string]interface{}{
-		"principal":  input.Principal,
-		"thumbprint": input.ThumbPrint,
-		"state": map[string]interface{}{
-			"principal":  input.TicketClaims.StateClaims.Principal,
-			"thumbprint": input.TicketClaims.StateClaims.ThumbPrint,
-		},
-		"ticket": map[string]interface{}{
-			"id_token": input.TicketClaims.IdToken,
-			"scope":    input.TicketClaims.Scope,
-		},
-	}))
+func (engine *OpenPolicyAgentEngine) Authorize(ctx context.Context, input map[string]interface{}) (*AuthorizationResult, error) {
+
+	results, err := engine.query.Eval(ctx, rego.EvalInput(input))
 
 	if err != nil {
 		return nil, err
