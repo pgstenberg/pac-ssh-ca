@@ -9,9 +9,9 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type State struct {
-	Thumbprint string `json:"thumbprint"`
-	Principal  string `json:"principal"`
+type state struct {
+	Fingerprint string `json:"fingerprint"`
+	Principal   string `json:"principal"`
 	jwt.RegisteredClaims
 }
 

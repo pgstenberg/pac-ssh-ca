@@ -68,7 +68,7 @@ func main() {
 		log.Fatal("Unable to load configuration: ", configFile)
 	}
 
-	policyEngine, err := NewOpenPolicyAgentEngine(authzmoduleFile, context.Background())
+	policyEngine, err := newOpenPolicyAgentEngine(authzmoduleFile, context.Background())
 	if err != nil {
 		log.Fatal("Unable to load policy engine: ", err)
 	}
@@ -78,7 +78,7 @@ func main() {
 		log.Fatal("Failed to load private key: ", err)
 	}
 
-	ca, err := NewCertificateAuthority(privateBytes, nil)
+	ca, err := newCertificateAuthority(privateBytes, nil)
 	if err != nil {
 		log.Fatal("Failed to load user certificate authority: ", err)
 	}
@@ -96,7 +96,7 @@ func main() {
 
 		stateValue := r.URL.Query().Get("state")
 
-		st, err := jwt.ParseWithClaims(stateValue, &State{}, func(token *jwt.Token) (interface{}, error) {
+		st, err := jwt.ParseWithClaims(stateValue, &state{}, func(token *jwt.Token) (interface{}, error) {
 			return ca.publicKey, nil
 		})
 		if err != nil {
@@ -104,7 +104,7 @@ func main() {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		state, ok := st.Claims.(*State)
+		state, ok := st.Claims.(*state)
 		if !ok {
 			log.Printf("unable to typecast stateclaims")
 			http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -136,10 +136,10 @@ func main() {
 			return
 		}
 
-		claims, err := JwtMapClaims(UserTicket{
+		claims, err := jsonMarshalUnmarshal[jwt.MapClaims](userTicket{
 			IdToken: idToken,
 			Scope:   scope,
-			State:   *state,
+			state:   *state,
 		})
 		if err != nil {
 			log.Printf("unable to sign jwt: %s", err)
@@ -160,95 +160,122 @@ func main() {
 
 	handleSshSession := func(s sshserver.Session) {
 
-		cmd := s.RawCommand()
-
-		if cmd != "" {
+		// If emtpy command, try issue new tickets (JWTs)
+		if s.RawCommand() == "" {
 
 			/**
-				PARSE JWT
+				HOST TICKET
 			**/
-			st, err := jwt.ParseWithClaims(cmd, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-				return ca.publicKey, nil
+			for _, delegate := range ca.delegates {
+				if ssh.FingerprintSHA256(*delegate) == ssh.FingerprintSHA256(s.PublicKey()) {
+					claims, err := jsonMarshalUnmarshal[jwt.MapClaims](hostTicket{})
+					if err != nil {
+						log.Printf("failed during host ticket creation; err=%s", err)
+						s.Exit(5)
+						return
+					}
+
+					t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+					st, err := t.SignedString(ca.privateKey)
+					if err != nil {
+						log.Printf("Unable to sign jwt; err=%s", err)
+						s.Exit(5)
+						return
+					}
+
+					io.WriteString(s, st+"\n")
+					s.Close()
+					return
+				}
+			}
+
+			/**
+				NEW AUTHORIZATION REQUEST
+			**/
+
+			federation, err := getFederationInstance(s.Context(), config)
+			if err != nil {
+				log.Printf("failed during getFederationInstance; %s", err)
+				s.Exit(5)
+				return
+			}
+
+			claims, err := jsonMarshalUnmarshal[jwt.MapClaims](state{
+				Principal:   s.User(),
+				Fingerprint: ssh.FingerprintSHA256(s.PublicKey()),
 			})
 			if err != nil {
-				log.Printf("jwt verify failed, err: %s", err)
+				log.Printf("failed during claims marshaling; %s", err)
 				s.Exit(5)
 				return
 			}
 
-			input, err := AnyToMap(st.Claims)
+			t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+			state, err := t.SignedString(ca.privateKey)
 			if err != nil {
-				log.Printf("unable to create authorization input: %s", err)
+				log.Printf("failed during jwt signing; %s", err)
 				s.Exit(5)
 				return
 			}
 
-			/**
-				POLICTY EVALUATION
-			**/
+			io.WriteString(s, federation.oauth2Config.AuthCodeURL(state)+"\n")
 
-			result, err := policyEngine.Authorize(s.Context(), input)
-			if err != nil {
-				log.Printf("policy evaluation failed, err: %s", err)
-				s.Exit(5)
-				return
-			}
-
-			permissions := ssh.Permissions{
-				CriticalOptions: result.CriticalOptions,
-				Extensions:      result.Extensions,
-			}
-
-			cert := &ssh.Certificate{
-				CertType:        ssh.UserCert,
-				Key:             s.PublicKey(),
-				ValidPrincipals: result.ValidPrincipals,
-				Permissions:     permissions,
-				ValidAfter:      result.ValidAfter,
-				ValidBefore:     result.ValidBefore,
-			}
-
-			if err := cert.SignCert(rand.Reader, *ca.signer); err != nil {
-				log.Printf("failed to sign certificate; %s", err)
-				s.Exit(4)
-				return
-			}
-
-			io.WriteString(s, string(ssh.MarshalAuthorizedKey(cert)))
 			s.Close()
+
+			return
 		}
 
 		/**
-			NEW AUTHORIZATION REQUEST
+			PARSE AND VALIDATE JWT
 		**/
-
-		federation, err := getFederationInstance(s.Context(), config)
-		if err != nil {
-			log.Printf("failed during getFederationInstance; %s", err)
-			s.Exit(5)
-			return
-		}
-
-		claims, err := JwtMapClaims(State{
-			Principal:  s.User(),
-			Thumbprint: ssh.FingerprintSHA256(s.PublicKey()),
+		st, err := jwt.ParseWithClaims(s.RawCommand(), &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return ca.publicKey, nil
 		})
 		if err != nil {
-			log.Printf("failed during claims marshaling; %s", err)
+			log.Printf("jwt verify failed, err: %s", err)
 			s.Exit(5)
 			return
 		}
 
-		t := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-		state, err := t.SignedString(ca.privateKey)
+		input, err := jsonMarshalUnmarshal[map[string]interface{}](st.Claims)
 		if err != nil {
-			log.Printf("failed during jwt signing; %s", err)
+			log.Printf("unable to create authorization input: %s", err)
 			s.Exit(5)
 			return
 		}
 
-		io.WriteString(s, federation.oauth2Config.AuthCodeURL(state)+"\n")
+		/**
+			POLICTY EVALUATION
+		**/
 
+		result, err := policyEngine.Authorize(s.Context(), *input)
+		if err != nil {
+			log.Printf("policy evaluation failed, err: %s", err)
+			s.Exit(5)
+			return
+		}
+
+		permissions := ssh.Permissions{
+			CriticalOptions: result.CriticalOptions,
+			Extensions:      result.Extensions,
+		}
+
+		cert := &ssh.Certificate{
+			CertType:        ssh.UserCert,
+			Key:             s.PublicKey(),
+			ValidPrincipals: result.ValidPrincipals,
+			Permissions:     permissions,
+			ValidAfter:      result.ValidAfter,
+			ValidBefore:     result.ValidBefore,
+		}
+
+		if err := cert.SignCert(rand.Reader, *ca.signer); err != nil {
+			log.Printf("failed to sign certificate; %s", err)
+			s.Exit(4)
+			return
+		}
+
+		io.WriteString(s, string(ssh.MarshalAuthorizedKey(cert)))
 		s.Close()
 
 	}

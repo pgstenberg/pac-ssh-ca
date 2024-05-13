@@ -2,20 +2,14 @@ package main
 
 import "encoding/json"
 
-func marshalUnmarshal(target interface{}, value any) error {
+func jsonMarshalUnmarshal[T any](value any) (*T, error) {
+	var target T
 	inrec, err := json.Marshal(value)
 	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(inrec, target); err != nil {
-		return err
-	}
-	return nil
-}
-func AnyToMap(value any) (map[string]interface{}, error) {
-	var inputMap map[string]interface{}
-	if err := marshalUnmarshal(inputMap, value); err != nil {
 		return nil, err
 	}
-	return inputMap, nil
+	if err := json.Unmarshal(inrec, target); err != nil {
+		return nil, err
+	}
+	return &target, nil
 }

@@ -6,41 +6,52 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type CertificateAuthority struct {
+type certificateAuthority struct {
 	signer     *ssh.Signer
 	publicKey  *rsa.PublicKey
 	privateKey *rsa.PrivateKey
 
-	TrustedIssuers []*ssh.PublicKey
+	delegates []*ssh.PublicKey
 }
 
-func NewCertificateAuthority(privateKeyData []byte, trustedIssuersData [][]byte) (*CertificateAuthority, error) {
-	privateKey, err := ssh.ParseRawPrivateKey(privateKeyData)
-	if err != nil {
-		return nil, err
-	}
-
-	signer, err := ssh.NewSignerFromKey(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	certificateAuthority := &CertificateAuthority{
-		signer:     &signer,
-		publicKey:  &(privateKey.(*rsa.PrivateKey)).PublicKey,
-		privateKey: privateKey.(*rsa.PrivateKey),
-	}
-
-	trustedIssuers := []*ssh.PublicKey{}
-	for _, issuerData := range trustedIssuersData {
+func loadDelegates(delegates [][]byte) ([]*ssh.PublicKey, error) {
+	list := []*ssh.PublicKey{}
+	for _, issuerData := range delegates {
 		k, _, _, _, err := ssh.ParseAuthorizedKey(issuerData)
 		if err != nil {
 			return nil, err
 		}
-		trustedIssuers = append(trustedIssuers, &k)
+		list = append(list, &k)
 	}
 
-	certificateAuthority.TrustedIssuers = trustedIssuers
+	return list, nil
+}
 
-	return certificateAuthority, nil
+func newCertificateAuthority(privatekey []byte, delegates [][]byte) (*certificateAuthority, error) {
+	pk, err := ssh.ParseRawPrivateKey(privatekey)
+	if err != nil {
+		return nil, err
+	}
+
+	signer, err := ssh.NewSignerFromKey(pk)
+	if err != nil {
+		return nil, err
+	}
+
+	ca := &certificateAuthority{
+		signer:     &signer,
+		publicKey:  &(pk.(*rsa.PrivateKey)).PublicKey,
+		privateKey: pk.(*rsa.PrivateKey),
+	}
+
+	ca.delegates = []*ssh.PublicKey{}
+
+	if delegates != nil {
+		ca.delegates, err = loadDelegates(delegates)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ca, nil
 }
