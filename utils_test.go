@@ -2,20 +2,42 @@ package main
 
 import (
 	"testing"
-
-	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 func TestJsonMarshalUnmarshal(t *testing.T) {
-	claims := &jwt.MapClaims{}
-	value := &hostTicket{
-		jwt.RegisteredClaims{
-			Subject: "helloworld",
-		},
-	}
-	if err := jsonMarshalUnmarshal[jwt.MapClaims](value, claims); err != nil {
-		t.Fatalf("error;%s", err)
+
+	type testStruct struct {
+		Foo string `json:"foo"`
+		Bar string `json:"bar"`
 	}
 
-	t.Logf("claims=%s", claims)
+	var target map[string]interface{}
+	if err := jsonMarshalUnmarshal[map[string]interface{}](testStruct{
+		Foo: "foo",
+		Bar: "bar",
+	}, &target); err != nil {
+		t.Fatalf("error: %s", err)
+	}
+
+	if target["foo"].(string) != "foo" {
+		t.Fatalf("target=%s, did not match %s", target["foo"].(string), "foo")
+	}
+	if target["bar"].(string) != "bar" {
+		t.Fatalf("target=%s, did not match %s", target["bar"].(string), "bar")
+	}
+}
+
+func TestStringSliceToBytes(t *testing.T) {
+
+	bytes := stringSliceToBytes([]string{
+		"foo",
+		"bar",
+	})
+
+	if string(bytes[0]) != "foo" {
+		t.Fatalf("bytes=%s, did not match %s", string(bytes[0]), "foo")
+	}
+	if string(bytes[1]) != "bar" {
+		t.Fatalf("bytes=%s, did not match %s", string(bytes[1]), "bar")
+	}
 }
