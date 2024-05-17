@@ -11,7 +11,6 @@ import (
 
 type state struct {
 	Fingerprint string `json:"fingerprint"`
-	Principal   string `json:"principal"`
 	jwt.RegisteredClaims
 }
 
@@ -32,18 +31,18 @@ func getFederationInstance(ctx context.Context, config *Config) (*federation, er
 		defer fedLock.Unlock()
 
 		if federationInstance == nil {
-			oidcProvider, err := oidc.NewProvider(ctx, config.OpenIdConnect.Issuer)
+			oidcProvider, err := oidc.NewProvider(ctx, config.Federation.OpenIdConnect.Issuer)
 			if err != nil {
 				return nil, err
 			}
 			oauth2Config := &oauth2.Config{
-				ClientID:     config.OpenIdConnect.ClientId,
-				ClientSecret: config.OpenIdConnect.ClientSecret,
-				RedirectURL:  config.OpenIdConnect.RedirectUri,
+				ClientID:     config.Federation.OpenIdConnect.ClientId,
+				ClientSecret: config.Federation.OpenIdConnect.ClientSecret,
+				RedirectURL:  config.Federation.OpenIdConnect.RedirectUri,
 
 				Endpoint: oidcProvider.Endpoint(),
 
-				Scopes: config.OpenIdConnect.Scopes,
+				Scopes: config.Federation.OpenIdConnect.Scopes,
 			}
 
 			oidcIDTokenVerifier := oidcProvider.Verifier(&oidc.Config{

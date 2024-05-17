@@ -10,19 +10,24 @@ default criticaloptions := {}
 default validafter := 0
 default validbefore := 0
 
-id_token_payload := io.jwt.decode(input.ticket.id_token)[1]
-
 allow if {
-    input.principal == id_token_payload.sub
-    input.principal == input.state.principal
+    "user" in input.aud
+    input.sub == input.state.sub
+    input.sub == input.username
+    input.fingerprint == input.state.fingerprint
+}
+allow if {
+    "host" in input.aud
+    input.sub == input.addr
+    input.sub == input.username
 }
 
 validprincipals = [
-	input.principal
+	input.sub
 ] if allow
 
-validafter = id_token_payload.nbf if allow
-validbefore = id_token_payload.exp if allow
+validafter = input.nbf if allow
+validbefore = input.exp if allow
 
 extensions = {
 	"permit-X11-forwarding":   "",
@@ -30,4 +35,7 @@ extensions = {
 	"permit-port-forwarding":  "",
 	"permit-pty":              "",
 	"permit-user-rc":          "",
-} if allow
+} if {
+    allow
+    "user" in input.aud
+}

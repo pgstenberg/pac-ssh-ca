@@ -4,13 +4,12 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 )
 
-type userTicket struct {
-	IdToken string `json:"id_token"`
-	Scope   string `json:"scope"`
+type UserTicket struct {
+	Scope string `json:"scope"`
 	jwt.RegisteredClaims
 	state `json:"state"`
 }
 
-type hostTicket struct {
+type HostTicket struct {
 	jwt.RegisteredClaims
 }
