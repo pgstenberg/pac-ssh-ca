@@ -10,27 +10,30 @@ import (
 type Config struct {
 	Federation struct {
 		OpenIdConnect struct {
-			StateTimeToLive string   `yaml:"state_ttl"`
+			StateTimeToLive string   `yaml:"state_ttl,omitempty"`
 			Issuer          string   `yaml:"issuer"`
+			TokenEndpoint   string   `yaml:"token_endpoint,omitempty"`
+			PrincipalClaim  string   `yaml:"principal_claim,omitempty"`
 			ClientId        string   `yaml:"client_id"`
 			ClientSecret    string   `yaml:"client_secret"`
 			RedirectUri     string   `yaml:"redirect_uri"`
-			Scopes          []string `yaml:"scopes"`
-		} `yaml:"openid_connect"`
-	} `yaml:"federation"`
+			Scopes          []string `yaml:"scopes,omitempty"`
+			ValidateIssuer  bool     `yaml:"validate_issuer,omitempty"`
+		} `yaml:"openid_connect,omitempty"`
+	} `yaml:"federation,omitempty"`
 	Delegation struct {
 		TicketTimeToLive string   `yaml:"ticket_ttl"`
-		Delegates        []string `yaml:"delegates"`
-	} `yaml:"delegation"`
+		Delegates        []string `yaml:"delegates,omitempty"`
+	} `yaml:"delegation,omitempty"`
 	HttpTransport struct {
-		InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
-	} `yaml:"http_transport"`
+		InsecureSkipVerify bool `yaml:"insecure_skip_verify,omitempty"`
+	} `yaml:"http_transport,omitempty"`
 	HttpServer struct {
-		Addr string `yaml:"addr"`
-	} `yaml:"http_server"`
+		Addr string `yaml:"addr,omitempty"`
+	} `yaml:"http_server,omitempty"`
 	SshServer struct {
-		Addr string `yaml:"addr"`
-	} `yaml:"ssh_server"`
+		Addr string `yaml:"addr,omitempty"`
+	} `yaml:"ssh_server,omitempty"`
 }
 
 func newConfig(configFile string) (*Config, error) {

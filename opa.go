@@ -5,20 +5,59 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/open-policy-agent/opa/rego"
 )
+
+const DEFAULT_OPA_REGO = `
+package ssh.authz
+
+import rego.v1
+
+default allow := false
+
+default validprincipals := []
+default extensions := {}
+default criticaloptions := {}
+default validafter := 0
+default validbefore := 0
+
+allow if {
+    "user" in input.aud
+    input.sub == input.state.sub
+    input.sub == input.username
+    input.fingerprint == input.state.fingerprint
+}
+allow if {
+    "host" in input.aud
+    input.sub == input.addr
+    input.sub == input.username
+}
+
+validprincipals = [
+	input.sub
+] if allow
+
+validafter = input.nbf if allow
+validbefore = input.exp if allow
+
+extensions = {
+	"permit-X11-forwarding":   "",
+	"permit-agent-forwarding": "",
+	"permit-port-forwarding":  "",
+	"permit-pty":              "",
+	"permit-user-rc":          "",
+} if {
+    allow
+    "user" in input.aud
+}
+`
 
 type openPolicyAgentEngine struct {
 	query *rego.PreparedEvalQuery
 }
 
-func newOpenPolicyAgentEngine(file string, ctx context.Context) (*openPolicyAgentEngine, error) {
-	regoModule, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
+func newOpenPolicyAgentEngine(regoModule []byte, ctx context.Context) (*openPolicyAgentEngine, error) {
 
 	query, err := rego.New(
 		rego.Query(`
@@ -30,7 +69,7 @@ func newOpenPolicyAgentEngine(file string, ctx context.Context) (*openPolicyAgen
 		vb = data.ssh.authz.validbefore
 		va = data.ssh.authz.validafter
 		`),
-		rego.Module(file, string(regoModule)),
+		rego.Module("ssh.authz.rego", string(regoModule)),
 	).PrepareForEval(ctx)
 
 	if err != nil {

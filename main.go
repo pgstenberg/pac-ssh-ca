@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"io"
 	"log"
@@ -35,24 +36,54 @@ func main() {
 		log.Fatal("Unable to determine issuer based on hostname: ", err)
 	}
 
+	log.Printf("Successfully setup token issuer: %s", issuer)
+
+	var privatekeyFile string
 	var configFile string
 	var authzmoduleFile string
-	var privatekeyFile string
-	flag.StringVar(&configFile, "config", "./config.yaml", "path to config file")
-	flag.StringVar(&authzmoduleFile, "authzmodule", "./default.rego", "path to opa rego module file")
 	flag.StringVar(&privatekeyFile, "privatekey", "./ca", "path ca private key")
+	flag.StringVar(&configFile, "config", "", "path to config file")
+	flag.StringVar(&authzmoduleFile, "authzmodule", "", "path to opa rego module file")
 
 	// Actually parse the flags
 	flag.Parse()
 
-	config, err := newConfig(configFile)
-	if err != nil {
-		log.Fatal("Unable to load configuration: ", configFile)
+	config := &Config{}
+	if configFile != "" {
+		config, err = newConfig(configFile)
+		if err != nil {
+			log.Fatal("Unable to load configuration: ", configFile)
+		}
 	}
 
-	policyEngine, err := newOpenPolicyAgentEngine(authzmoduleFile, context.Background())
+	policyEngine, err := newOpenPolicyAgentEngine([]byte(DEFAULT_OPA_REGO), context.Background())
 	if err != nil {
-		log.Fatal("Unable to load policy engine: ", err)
+		log.Fatal("Unable to load default rego module: ", err)
+	}
+	if authzmoduleFile != "" {
+		regoModule, err := os.ReadFile(authzmoduleFile)
+		if err != nil {
+			log.Fatal("Unable to load regomodule: ", authzmoduleFile)
+		}
+		policyEngine, err = newOpenPolicyAgentEngine(regoModule, context.Background())
+		if err != nil {
+			log.Fatal("Unable to load policy engine: ", err)
+		}
+	}
+
+	if _, err := os.Stat(privatekeyFile); errors.Is(err, os.ErrNotExist) {
+		log.Printf("File %s do not exists, generating new privatekey...", privatekeyFile)
+
+		privateKey, err := generatePrivateKey(2048)
+		if err != nil {
+			log.Fatal("Failed to generate new private key: ", err)
+		}
+
+		if err := os.WriteFile(privatekeyFile, privateKey, 0600); err != nil {
+			log.Fatal("Failed to write new private key: ", err)
+		}
+
+		log.Printf("Successfully generated and store new private key: %s", privatekeyFile)
 	}
 
 	privateBytes, err := os.ReadFile(privatekeyFile)
@@ -60,9 +91,17 @@ func main() {
 		log.Fatal("Failed to load private key: ", err)
 	}
 
-	ca, err := newCertificateAuthority(privateBytes, stringSliceToBytes(config.Delegation.Delegates))
+	delegates := [][]byte{{}}
+	if config.Delegation.Delegates != nil {
+		delegates = stringSliceToBytes(config.Delegation.Delegates)
+	}
+	ca, err := newCertificateAuthority(privateBytes, delegates)
 	if err != nil {
 		log.Fatal("Failed to load user certificate authority: ", err)
+	}
+
+	for _, d := range ca.delegates {
+		log.Printf("Successfully loaded delegate: %s", string(cryptossh.MarshalAuthorizedKey(*d)))
 	}
 
 	k, err := cryptossh.NewPublicKey(ca.publicKey)
@@ -77,7 +116,8 @@ func main() {
 		SSH SERVER
 	**/
 	sshserver := &ssh.Server{
-		Addr: config.SshServer.Addr,
+		Addr:        config.SshServer.Addr,
+		HostSigners: []ssh.Signer{*ca.signer},
 		Handler: func(s ssh.Session) {
 
 			// If emtpy command, try issue new tickets (JWTs)
@@ -120,7 +160,7 @@ func main() {
 						}
 
 						io.WriteString(s, st+"\n")
-						s.Close()
+						s.Exit(0)
 						return
 					}
 				}
@@ -135,7 +175,7 @@ func main() {
 
 				claims := &jwt.MapClaims{}
 				t0 := time.Now()
-				td, err := time.ParseDuration(config.Delegation.TicketTimeToLive)
+				td, err := time.ParseDuration(config.Federation.OpenIdConnect.StateTimeToLive)
 				if err != nil {
 					log.Printf("failed to parse ticket duration; err=%s", err)
 					s.Exit(5)
@@ -180,7 +220,7 @@ func main() {
 				jwt.WithIssuer(issuer),
 			)
 
-			st, err := jwtParser.ParseWithClaims(s.RawCommand(), &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+			st, err := jwtParser.ParseWithClaims(s.RawCommand(), &jwt.MapClaims{}, func(token *jwt.Token) (interface{}, error) {
 				return ca.publicKey, nil
 			})
 			if err != nil {
@@ -276,7 +316,7 @@ func main() {
 			return ca.publicKey, nil
 		})
 		if err != nil {
-			log.Printf("state jwt validation failed: %s", err)
+			log.Printf("state jwt validation failed, jwt=%s, err=%s", stateValue, err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -306,11 +346,25 @@ func main() {
 			scope = oauth2Token.Extra("scope").(string)
 		}
 
+		log.Printf("Verifying id_token=%s", idToken)
+
 		parsedIdToken, err := federation.oidcIDTokenVerifier.Verify(r.Context(), idToken)
 		if err != nil {
-			log.Printf("id_token verification failed.")
+			log.Printf("id_token verification failed, err=%s", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
+		}
+
+		principalClaim := parsedIdToken.Subject
+
+		if config.Federation.OpenIdConnect.PrincipalClaim != "" {
+			var claims jwt.MapClaims
+			if err := parsedIdToken.Claims(&claims); err != nil {
+				log.Printf("unable to parse id_token, err=%s", err)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			principalClaim = claims[config.Federation.OpenIdConnect.PrincipalClaim].(string)
 		}
 
 		claims := &jwt.MapClaims{}
@@ -319,7 +373,7 @@ func main() {
 			Scope: scope,
 			state: *state,
 			RegisteredClaims: jwt.RegisteredClaims{
-				Subject:   parsedIdToken.Subject,
+				Subject:   principalClaim,
 				Audience:  jwt.ClaimStrings{AUD_USER},
 				NotBefore: jwt.NewNumericDate(t0),
 				IssuedAt:  jwt.NewNumericDate(t0),

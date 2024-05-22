@@ -31,7 +31,11 @@ func getFederationInstance(ctx context.Context, config *Config) (*federation, er
 		defer fedLock.Unlock()
 
 		if federationInstance == nil {
-			oidcProvider, err := oidc.NewProvider(ctx, config.Federation.OpenIdConnect.Issuer)
+			var providerContext = ctx
+			if !config.Federation.OpenIdConnect.ValidateIssuer {
+				providerContext = oidc.InsecureIssuerURLContext(providerContext, config.Federation.OpenIdConnect.Issuer)
+			}
+			oidcProvider, err := oidc.NewProvider(providerContext, config.Federation.OpenIdConnect.Issuer)
 			if err != nil {
 				return nil, err
 			}
@@ -43,6 +47,9 @@ func getFederationInstance(ctx context.Context, config *Config) (*federation, er
 				Endpoint: oidcProvider.Endpoint(),
 
 				Scopes: config.Federation.OpenIdConnect.Scopes,
+			}
+			if config.Federation.OpenIdConnect.TokenEndpoint != "" {
+				oauth2Config.Endpoint.TokenURL = config.Federation.OpenIdConnect.TokenEndpoint
 			}
 
 			oidcIDTokenVerifier := oidcProvider.Verifier(&oidc.Config{

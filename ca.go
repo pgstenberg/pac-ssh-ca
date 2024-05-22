@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rsa"
+	"fmt"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -17,6 +18,9 @@ type certificateAuthority struct {
 func loadDelegates(delegates [][]byte) ([]*ssh.PublicKey, error) {
 	list := []*ssh.PublicKey{}
 	for _, issuerData := range delegates {
+		if len(issuerData) == 0 {
+			continue
+		}
 		k, _, _, _, err := ssh.ParseAuthorizedKey(issuerData)
 		if err != nil {
 			return nil, err
@@ -46,10 +50,10 @@ func newCertificateAuthority(privatekey []byte, delegates [][]byte) (*certificat
 
 	ca.delegates = []*ssh.PublicKey{}
 
-	if delegates != nil {
+	if len(delegates) > 0 {
 		ca.delegates, err = loadDelegates(delegates)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to load delegates, err: %s", err)
 		}
 	}
 

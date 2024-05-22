@@ -1,0 +1,228 @@
+services:
+  user:
+    container_name: ${COMPOSE_PROJECT_NAME}_user
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ubuntu:noble
+
+        RUN apt update && \
+          apt install -y openssh-client
+
+        RUN useradd -s /bin/bash -d /home/user01 -m -G sudo user01
+
+        USER user01
+    stdin_open: true
+    tty: true
+    entrypoint: /bin/bash
+    profiles: 
+      - user
+
+
+  idp:
+    container_name: ${COMPOSE_PROJECT_NAME}_idp
+    profiles: 
+      - ca
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM dexidp/dex:v2.39.1-alpine
+
+        RUN mkdir -p /etc/dex /var/dex
+        RUN cat <<'EOF' >> /etc/dex/config.yml
+
+        issuer: http://127.0.0.1.nip.io:5556/dex
+
+        storage:
+          type: sqlite3
+          config:
+            file: /var/dex/data.db
+
+        web:
+          http: :5556
+
+        logger:
+          level: "debug"
+
+        staticClients:
+          - id: oidc-ssh-ca
+            redirectURIs:
+              - "http://127.0.0.1:8080/oauth/v2/callback"
+            name: "OpenID Connect SSH CA"
+            secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+        enablePasswordDB: true
+
+        staticPasswords:
+          - email: "user01@example.com"
+            username: "user01"
+            hash: "$$2y$$10$$50oFGLcRAgLyW99g4yQ5dOdXpBI7ExqcTsJolXt3xxXm9QzdxR/y2"
+            userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+        EOF
+    command: dex serve /etc/dex/config.yml
+    networks:
+      default:
+        aliases:
+          - 127.0.0.1.nip.io
+    ports:
+      - "5556:5556"
+
+  ca_host:
+    container_name: ${COMPOSE_PROJECT_NAME}_ca_host
+    build:
+      context: ../../
+      dockerfile_inline: |
+        FROM golang:1.21.4
+
+        WORKDIR /build
+        COPY . ./
+
+        # Download Go modules
+        RUN go mod download
+        # Build
+        RUN CGO_ENABLED=0 GOOS=linux go build -o ./oidc-ssh-ca .
+
+        FROM ubuntu:noble
+        COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
+
+        COPY ./examples/ansible/id_rsa.pub /delegate_id_rsa.pub
+
+        RUN cat <<EOF >> /config.yml
+        delegation:
+          ticket_ttl: 8760h
+          delegates:
+            - $(cat /delegate_id_rsa.pub)
+        EOF
+
+    command: /bin/oidc-ssh-ca --config /config.yml
+    profiles: 
+      - ca
+  ca_user:
+    container_name: ${COMPOSE_PROJECT_NAME}_ca_user
+    build:
+      context: ../../
+      dockerfile_inline: |
+        FROM golang:1.21.4
+
+        WORKDIR /build
+        COPY . ./
+
+        # Download Go modules
+        RUN go mod download
+        # Build
+        RUN CGO_ENABLED=0 GOOS=linux go build -o ./oidc-ssh-ca .
+
+        FROM ubuntu:noble
+        COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
+
+        RUN cat <<EOF >> /config.yml
+        federation:
+          openid_connect:
+            state_ttl: 5m
+            issuer: "http://127.0.0.1.nip.io:5556/dex"
+            principal_claim: name
+            client_id: oidc-ssh-ca
+            client_secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+            redirect_uri: "http://127.0.0.1:8080/oauth/v2/callback"
+            scopes:
+              - openid
+              - email
+              - profile
+        EOF
+
+    command: /bin/oidc-ssh-ca --config /config.yml
+    ports:
+      - "8080:80"
+    profiles: 
+      - ca
+
+  master:
+    container_name: ${COMPOSE_PROJECT_NAME}_master
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ubuntu:noble
+
+        RUN apt update && \
+          apt install -y openssh-server python3 python3-pip
+
+        RUN python3 -m pip install ansible --break-system-packages
+
+        COPY id_rsa /root/.ssh/
+        COPY id_rsa.pub /root/.ssh/
+
+        RUN mkdir -p /opt/ansible
+
+        RUN cat <<'EOF' >> /opt/ansible/ansible.cfg
+        [defaults]
+        inventory = ./inventory.ini
+        host_key_checking = False
+        EOF
+
+        RUN cat <<'EOF' >> /opt/ansible/inventory.ini
+        [test_local]
+        ${COMPOSE_PROJECT_NAME}_host01.${COMPOSE_PROJECT_NAME}_test_local
+        ${COMPOSE_PROJECT_NAME}_host02.${COMPOSE_PROJECT_NAME}_test_local
+        ${COMPOSE_PROJECT_NAME}_host03.${COMPOSE_PROJECT_NAME}_test_local
+        EOF
+
+        COPY playbook.yml /opt/ansible/playbook.yml
+
+    command: ansible-playbook playbook.yml
+    depends_on:
+      - ca_host
+      - ca_user
+    working_dir: /opt/ansible
+    profiles: 
+      - ca
+
+  host01:
+    &host
+    container_name: ${COMPOSE_PROJECT_NAME}_host01
+    hostname: ${COMPOSE_PROJECT_NAME}_host01
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ubuntu:noble
+
+        RUN apt update && \
+          apt install -y python3 cron openssh-server supervisor
+
+        COPY id_rsa.pub /root/.ssh/authorized_keys
+
+        RUN mkdir -p /run/sshd
+
+        RUN cat <<'EOF' >> /etc/supervisor/conf.d/supervisord.conf
+        [supervisord]
+        nodaemon=true
+        logfile=/dev/null
+        logfile_maxbytes=0
+
+        [program:cron]
+        command=/usr/sbin/cron
+        stdout_logfile=/dev/fd/1
+        stdout_logfile_maxbytes=0
+        redirect_stderr=true
+
+        [program:sshd]
+        command=/usr/sbin/sshd
+        stdout_logfile=/dev/fd/1
+        stdout_logfile_maxbytes=0
+        redirect_stderr=true
+        EOF
+
+        CMD ["/usr/bin/supervisord"]
+    profiles: 
+      - ca
+  host02:
+    <<: *host
+    container_name: ${COMPOSE_PROJECT_NAME}_host02
+    hostname: ${COMPOSE_PROJECT_NAME}_host02
+  host03:
+    <<: *host
+    container_name: ${COMPOSE_PROJECT_NAME}_host03
+    hostname: ${COMPOSE_PROJECT_NAME}_host03
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME}_test_local

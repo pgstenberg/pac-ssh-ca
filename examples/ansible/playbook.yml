@@ -1,0 +1,62 @@
+---
+- name: Update all servers CA USER
+  hosts: all
+  remote_user: root
+
+  tasks:
+  - name: Get CA public key users
+    ansible.builtin.uri:
+      url: http://ca_user/crypto/public
+      return_content: true
+    register: ca_user_pub_key
+  - name: Create CA trusted file
+    copy:
+      dest: "/etc/ssh/ssh_trusted_ca.pub"
+      content: "{{ ca_user_pub_key.content }}"
+  - name: Create new ssh config file
+    copy:
+      dest: "/etc/ssh/ssh_config.d/trusted_ca"
+      content: "TrustedUserCAKeys /etc/ssh/ssh_trusted_ca.pub"
+
+
+- name: Update all servers CA HOST
+  hosts: all
+  remote_user: root
+
+  tasks:
+  - name: Get CA public key
+    ansible.builtin.uri:
+      url: http://ca_host/crypto/public
+      return_content: true
+    register: ca_host_pub_key
+    run_once: True
+
+  - name: Add CA public key to known_hosts
+    ansible.builtin.known_hosts:
+      path: /root/.ssh/known_hosts
+      name: ca_host
+      key: "ca_host {{ ca_host_pub_key.content }}"
+
+  - name: Add CA public key to known_hosts master
+    ansible.builtin.known_hosts:
+      path: /root/.ssh/known_hosts
+      name: ca_host
+      key: "ca_host {{ ca_host_pub_key.content }}"
+    delegate_to: localhost
+    run_once: True
+
+  - name: Generate ticket
+    ansible.builtin.shell: |
+      ssh -tt {{ ansible_facts['hostname'] }}.ansible_test_local.@ca_host
+    delegate_to: localhost
+    register: ticket
+
+  - name: Creates a cron file under /etc/cron.d
+    ansible.builtin.cron:
+      name: test
+      weekday: "2"
+      minute: "0"
+      hour: "12"
+      user: root
+      job: "ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['hostname'] }}.ansible_test_local.@ca_host '{{ ticket.stdout }}'"
+      cron_file: ansible_test
