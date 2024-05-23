@@ -266,8 +266,22 @@ func main() {
 				Extensions:      result.Extensions,
 			}
 
+			var certType uint32
+			aud, err := st.Claims.GetAudience()
+			if err != nil {
+				log.Printf("Unable to determine aud, err:%s", err)
+				s.Exit(5)
+				return
+			}
+			switch aud[0] {
+			case AUD_HOST:
+				certType = cryptossh.HostCert
+			case AUD_USER:
+				certType = cryptossh.UserCert
+			}
+
 			cert := &cryptossh.Certificate{
-				CertType:        cryptossh.UserCert,
+				CertType:        certType,
 				Key:             s.PublicKey(),
 				ValidPrincipals: result.ValidPrincipals,
 				Permissions:     permissions,
@@ -282,7 +296,7 @@ func main() {
 			}
 
 			io.WriteString(s, string(cryptossh.MarshalAuthorizedKey(cert)))
-			s.Close()
+			s.Exit(0)
 
 		},
 	}

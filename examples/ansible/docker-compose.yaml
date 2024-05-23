@@ -7,11 +7,12 @@ services:
         FROM ubuntu:noble
 
         RUN apt update && \
-          apt install -y openssh-client
+          apt install -y openssh-client curl
 
         RUN useradd -s /bin/bash -d /home/user01 -m -G sudo user01
 
         USER user01
+        WORKDIR /home/user01
     stdin_open: true
     tty: true
     entrypoint: /bin/bash
@@ -85,6 +86,9 @@ services:
         FROM ubuntu:noble
         COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
 
+        RUN apt update && \
+          apt install -y curl
+
         COPY ./examples/ansible/id_rsa.pub /delegate_id_rsa.pub
 
         RUN cat <<EOF >> /config.yml
@@ -95,6 +99,11 @@ services:
         EOF
 
     command: /bin/oidc-ssh-ca --config /config.yml
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost/crypto/public"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
     profiles: 
       - ca
   ca_user:
@@ -115,6 +124,9 @@ services:
         FROM ubuntu:noble
         COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
 
+        RUN apt update && \
+          apt install -y curl
+
         RUN cat <<EOF >> /config.yml
         federation:
           openid_connect:
@@ -131,6 +143,11 @@ services:
         EOF
 
     command: /bin/oidc-ssh-ca --config /config.yml
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost/crypto/public"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
     ports:
       - "8080:80"
     profiles: 
@@ -170,8 +187,10 @@ services:
 
     command: ansible-playbook playbook.yml
     depends_on:
-      - ca_host
-      - ca_user
+      ca_host:
+        condition: service_healthy
+      ca_user:
+        condition: service_healthy
     working_dir: /opt/ansible
     profiles: 
       - ca
@@ -186,29 +205,44 @@ services:
         FROM ubuntu:noble
 
         RUN apt update && \
-          apt install -y python3 cron openssh-server supervisor
+          apt install -y python3 python3-pip cron openssh-server supervisor
+
+        RUN python3 -m pip install ansible --break-system-packages
 
         COPY id_rsa.pub /root/.ssh/authorized_keys
 
-        RUN mkdir -p /run/sshd
+        RUN useradd -s /bin/bash -d /home/user01 -m -G sudo user01
 
         RUN cat <<'EOF' >> /etc/supervisor/conf.d/supervisord.conf
         [supervisord]
         nodaemon=true
-        logfile=/dev/null
+        logfile=/dev/stdout
         logfile_maxbytes=0
 
         [program:cron]
-        command=/usr/sbin/cron
-        stdout_logfile=/dev/fd/1
+        command=/usr/sbin/cron -f
+        stdout_logfile=/dev/stdout
         stdout_logfile_maxbytes=0
         redirect_stderr=true
+        autorestart=true
 
         [program:sshd]
-        command=/usr/sbin/sshd
-        stdout_logfile=/dev/fd/1
+        command=/usr/sbin/sshd -D -e
+        stdout_logfile=/dev/stdout
         stdout_logfile_maxbytes=0
         redirect_stderr=true
+        autorestart=true
+        EOF
+
+        RUN mkdir -p /run/sshd
+        RUN cat <<'EOF' >> /etc/ssh/sshd_config.d/custom.conf
+        TrustedUserCAKeys /etc/ssh/ssh_trusted_ca.pub
+        HostCertificate /etc/ssh/ssh_host_rsa_key-cert.pub
+        EOF
+
+        RUN mkdir -p /etc/ansible
+        RUN cat <<'EOF' >> /etc/ansible/hosts
+        localhost ansible_connection=local
         EOF
 
         CMD ["/usr/bin/supervisord"]

@@ -1,0 +1,50 @@
+---
+- hosts: localhost
+  remote_user: root
+
+  tasks:
+    #################################################################
+    # Certificate Authority - User
+    #################################################################
+    - name: download ca user public key
+      ansible.builtin.uri:
+        url: http://ca_user/crypto/public
+        return_content: true
+      register: ca_user_pub_key
+
+    - name: create ca user trusted file
+      copy:
+        dest: "/etc/ssh/ssh_trusted_ca.pub"
+        content: "{{ ca_user_pub_key.content }}"
+      notify:
+        - restart sshd
+
+    #################################################################
+    # Certificate Authority - Host
+    #################################################################
+    - name: download ca host public certificate
+      ansible.builtin.uri:
+        url: http://ca_host/crypto/public
+        return_content: true
+      register: ca_host_pub_key
+
+    - name: add ca host public key to known_hosts
+      ansible.builtin.known_hosts:
+        path: /root/.ssh/known_hosts
+        name: ca_host
+        key: "ca_host {{ ca_host_pub_key.content }}"
+
+    #################################################################
+    # Issue Host Certificate
+    #################################################################
+    - name: issue new ssh certificate
+      ansible.builtin.shell: |
+        ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['hostname'] }}.ansible_test_local.@ca_host "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
+      notify:
+        - restart sshd
+
+  # Handler for restarting sshd process
+  handlers:
+    - name: restart sshd
+      ansible.builtin.shell: |
+        kill -15 $(pidof sshd)
