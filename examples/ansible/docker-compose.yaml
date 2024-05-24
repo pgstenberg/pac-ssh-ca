@@ -187,6 +187,12 @@ services:
 
     command: ansible-playbook playbook.yml
     depends_on:
+      host01:
+        condition: service_started
+      host02:
+        condition: service_started
+      host03:
+        condition: service_started
       ca_host:
         condition: service_healthy
       ca_user:
@@ -205,7 +211,7 @@ services:
         FROM ubuntu:noble
 
         RUN apt update && \
-          apt install -y python3 python3-pip cron openssh-server supervisor
+          apt install -y python3 python3-pip cron openssh-server supervisor git
 
         RUN python3 -m pip install ansible --break-system-packages
 
@@ -232,6 +238,15 @@ services:
         stdout_logfile_maxbytes=0
         redirect_stderr=true
         autorestart=true
+
+        [program:ansible-pull]
+        command = ansible-pull -U https://github.com/pgstenberg/oidc-ssh-ca.git examples/ansible/playbook-pull.yml
+        stdout_logfile=/dev/stdout
+        stdout_logfile_maxbytes=0
+        redirect_stderr=true
+        startsecs = 0
+        autorestart = false
+        startretries = 1        
         EOF
 
         RUN mkdir -p /run/sshd
@@ -246,6 +261,11 @@ services:
         EOF
 
         CMD ["/usr/bin/supervisord"]
+    depends_on:
+      ca_host:
+        condition: service_healthy
+      ca_user:
+        condition: service_healthy
     profiles: 
       - ca
   host02:
