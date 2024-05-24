@@ -16,8 +16,6 @@
       copy:
         dest: "/etc/ssh/ssh_trusted_ca.pub"
         content: "{{ ca_user_pub_key.content }}"
-      notify:
-        - restart sshd
 
     #################################################################
     # Certificate Authority - Host
@@ -44,11 +42,9 @@
     - name: issue new ssh certificate
       ansible.builtin.shell: |
         ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['hostname'] }}.ansible_test_local.@ca_host "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
-      notify:
-        - restart sshd
+      register: issue_certificate
 
-  # Handler for restarting sshd process
-  handlers:
     - name: restart sshd
       ansible.builtin.shell: |
         kill -15 $(pidof sshd)
+      when: issue_certificate is succeeded
