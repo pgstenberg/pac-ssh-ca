@@ -55,11 +55,15 @@ func getFederationInstance(ctx context.Context, config *Config) (*federation, er
 			oidcIDTokenVerifier := oidcProvider.Verifier(&oidc.Config{
 				ClientID: oauth2Config.ClientID,
 			})
-			return &federation{
+
+			// Set instance
+			federationInstance = &federation{
 				oauth2Config:        oauth2Config,
 				oidcProvider:        oidcProvider,
 				oidcIDTokenVerifier: oidcIDTokenVerifier,
-			}, nil
+			}
+
+			return federationInstance, nil
 		}
 	}
 

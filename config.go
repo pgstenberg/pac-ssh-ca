@@ -1,7 +1,8 @@
 package main
 
 import (
-	"os"
+	"bytes"
+	"fmt"
 
 	"gopkg.in/yaml.v2"
 )
@@ -11,7 +12,7 @@ type Config struct {
 	Federation struct {
 		OpenIdConnect struct {
 			StateTimeToLive string   `yaml:"state_ttl,omitempty"`
-			Issuer          string   `yaml:"issuer"`
+			Issuer          string   `yaml:"issuer" validate:"required"`
 			TokenEndpoint   string   `yaml:"token_endpoint,omitempty"`
 			PrincipalClaim  string   `yaml:"principal_claim,omitempty"`
 			ClientId        string   `yaml:"client_id"`
@@ -36,20 +37,29 @@ type Config struct {
 	} `yaml:"ssh_server,omitempty"`
 }
 
-func newConfig(configFile string) (*Config, error) {
+func newConfig(configData []byte) (*Config, error) {
 
 	config := &Config{}
 
-	file, err := os.Open(configFile)
-	if err != nil {
-		return nil, err
+	if len(configData) == 0 {
+		return nil, fmt.Errorf("no configuration data was provided")
 	}
-	defer file.Close()
 
-	d := yaml.NewDecoder(file)
+	d := yaml.NewDecoder(bytes.NewReader(configData))
+	d.SetStrict(true)
 
 	if err := d.Decode(&config); err != nil {
 		return nil, err
+	}
+
+	// Check if config is sufficient
+	if len(config.Delegation.Delegates) == 0 &&
+		// Check Required Fields for OIDC Federation
+		(config.Federation.OpenIdConnect.Issuer == "" ||
+			config.Federation.OpenIdConnect.ClientId == "" ||
+			config.Federation.OpenIdConnect.ClientSecret == "" ||
+			config.Federation.OpenIdConnect.RedirectUri == "") {
+		return nil, fmt.Errorf("either one delegate or proper federation need to be provided")
 	}
 
 	return config, nil

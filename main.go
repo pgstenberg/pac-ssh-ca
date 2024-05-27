@@ -50,7 +50,12 @@ func main() {
 
 	config := &Config{}
 	if configFile != "" {
-		config, err = newConfig(configFile)
+		configData, err := os.ReadFile(authzmoduleFile)
+		if err != nil {
+			log.Fatal("Unable to load config-file: ", err)
+		}
+
+		config, err = newConfig(configData)
 		if err != nil {
 			log.Fatal("Unable to load configuration: ", configFile)
 		}
