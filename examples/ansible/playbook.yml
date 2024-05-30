@@ -8,7 +8,7 @@
     #################################################################
   - name: download ca host public key
     ansible.builtin.uri:
-      url: http://ca_host/crypto/public
+      url: http://{{ ca_host }}/crypto/public
       return_content: true
     register: ca_host_pub_key
     run_once: True

@@ -1,13 +1,17 @@
 services:
+
+#
+# Container used to test SSH as a "user"
+#
+
   user:
-    container_name: ${COMPOSE_PROJECT_NAME}_user
     build:
       context: .
       dockerfile_inline: |
         FROM ubuntu:noble
 
         RUN apt update && \
-          apt install -y openssh-client curl
+          apt install -y openssh-client curl dnsutils
 
         RUN useradd -s /bin/bash -d /home/user01 -m -G sudo user01
 
@@ -19,11 +23,52 @@ services:
     profiles: 
       - user
 
+#
+# DNS used for reverse DNS lookups in host CA
+#
+
+  dns:
+    profiles: 
+      - core
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ubuntu:noble
+
+        RUN apt update && \
+          apt install -y dnsmasq dnsutils ldnsutils     
+
+        RUN mkdir -p /etc/hosts.d
+        RUN cat <<'EOF' > /etc/dnsmasq.conf
+        port=53
+        addn-hosts=/etc/hosts.d
+        server=/#/127.0.0.11
+        cache-size=1000
+        EOF
+
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo $(dig host01 +short) host01.example.local >> /etc/hosts.d/docker
+        echo $(dig host02 +short) host02.example.local >> /etc/hosts.d/docker
+        echo $(dig host03 +short) host03.example.local >> /etc/hosts.d/docker
+        /usr/sbin/dnsmasq -k -q
+    depends_on:
+      host01:
+        condition: service_started
+      host02:
+        condition: service_started
+      host03:
+        condition: service_started
+
+#
+# IdP used for OIDC federated user logins
+#
 
   idp:
-    container_name: ${COMPOSE_PROJECT_NAME}_idp
     profiles: 
-      - ca
+      - core
     build:
       context: .
       dockerfile_inline: |
@@ -57,6 +102,7 @@ services:
         staticPasswords:
           - email: "user01@example.com"
             username: "user01"
+            # Password1
             hash: "$$2y$$10$$50oFGLcRAgLyW99g4yQ5dOdXpBI7ExqcTsJolXt3xxXm9QzdxR/y2"
             userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
         EOF
@@ -68,8 +114,13 @@ services:
     ports:
       - "5556:5556"
 
-  ca_host:
-    container_name: ${COMPOSE_PROJECT_NAME}_ca_host
+#
+# SSH Certificat Authorities
+#
+
+  ca-host:
+    profiles: 
+      - core
     build:
       context: ../../
       dockerfile_inline: |
@@ -92,6 +143,7 @@ services:
         COPY ./examples/ansible/id_rsa.pub /delegate_id_rsa.pub
 
         RUN cat <<EOF >> /config.yml
+        reverse_lookup_dns: dns
         delegation:
           ticket_ttl: 8760h
           delegates:
@@ -100,14 +152,15 @@ services:
 
     command: /bin/oidc-ssh-ca --config /config.yml
     healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost/crypto/public"]
-        interval: 30s
-        timeout: 10s
-        retries: 5
+      test: curl --fail http://localhost/crypto/public || exit 1
+    networks:
+      default:
+        aliases:
+          - host.ca.example.local
+
+  ca-user:
     profiles: 
-      - ca
-  ca_user:
-    container_name: ${COMPOSE_PROJECT_NAME}_ca_user
+      - core
     build:
       context: ../../
       dockerfile_inline: |
@@ -144,17 +197,20 @@ services:
 
     command: /bin/oidc-ssh-ca --config /config.yml
     healthcheck:
-        test: ["CMD", "curl", "-f", "http://localhost/crypto/public"]
-        interval: 30s
-        timeout: 10s
-        retries: 5
+      test: curl --fail http://localhost/crypto/public || exit 1
     ports:
       - "8080:80"
-    profiles: 
-      - ca
+    networks:
+      default:
+        aliases:
+          - user.ca.example.local
+#
+# Ansible Master
+#
 
-  master:
-    container_name: ${COMPOSE_PROJECT_NAME}_master
+  ansible-master:
+    profiles: 
+      - core
     build:
       context: .
       dockerfile_inline: |
@@ -168,43 +224,47 @@ services:
         COPY id_rsa /root/.ssh/
         COPY id_rsa.pub /root/.ssh/
 
-        RUN mkdir -p /opt/ansible
-
-        RUN cat <<'EOF' >> /opt/ansible/ansible.cfg
+        RUN mkdir -p /etc/ansible
+        RUN cat <<'EOF' >> /etc/ansible/ansible.cfg
         [defaults]
-        inventory = ./inventory.ini
         host_key_checking = False
         EOF
 
-        RUN cat <<'EOF' >> /opt/ansible/inventory.ini
-        [test_local]
-        ${COMPOSE_PROJECT_NAME}_host01.${COMPOSE_PROJECT_NAME}_test_local
-        ${COMPOSE_PROJECT_NAME}_host02.${COMPOSE_PROJECT_NAME}_test_local
-        ${COMPOSE_PROJECT_NAME}_host03.${COMPOSE_PROJECT_NAME}_test_local
+        RUN cat <<'EOF' >> /etc/ansible/hosts
+        [example.local]
+        host01.example.local
+        host02.example.local
+        host03.example.local
+        EOF
+
+        RUN mkdir -p /etc/ansible/group_vars
+        RUN cat <<'EOF' >> /etc/ansible/group_vars/example.local
+        ca_host: host.ca.example.local
         EOF
 
         COPY playbook.yml /opt/ansible/playbook.yml
-
+    working_dir: /opt/ansible
     command: ansible-playbook playbook.yml
     depends_on:
       host01:
-        condition: service_started
+        condition: service_healthy
       host02:
-        condition: service_started
+        condition: service_healthy
       host03:
-        condition: service_started
-      ca_host:
         condition: service_healthy
-      ca_user:
+      ca-host:
         condition: service_healthy
-    working_dir: /opt/ansible
-    profiles: 
-      - ca
+      ca-user:
+        condition: service_healthy
+
+#
+# Host Definitions
+#
 
   host01:
     &host
-    container_name: ${COMPOSE_PROJECT_NAME}_host01
-    hostname: ${COMPOSE_PROJECT_NAME}_host01
+    profiles:
+      - core
     build:
       context: .
       dockerfile_inline: |
@@ -255,28 +315,41 @@ services:
         HostCertificate /etc/ssh/ssh_host_rsa_key-cert.pub
         EOF
 
-        RUN mkdir -p /etc/ansible
+        RUN mkdir -p /etc/ansible /etc/ansible/host_vars
+
         RUN cat <<'EOF' >> /etc/ansible/hosts
         localhost ansible_connection=local
         EOF
 
-        CMD ["/usr/bin/supervisord"]
+        RUN cat <<'EOF' >> /etc/ansible/host_vars/localhost
+        ca_host: host.ca.example.local
+        ca_user: user.ca.example.local
+        EOF
+
+    command: /usr/bin/supervisord
+    healthcheck:
+      test: bash -c "exec 6<> /dev/tcp/localhost/22"
     depends_on:
-      ca_host:
+      ca-host:
         condition: service_healthy
-      ca_user:
+      ca-user:
         condition: service_healthy
-    profiles: 
-      - ca
+    hostname: host01.example.local
+    networks:
+      default:
+        aliases:
+          - host01.example.local
   host02:
     <<: *host
-    container_name: ${COMPOSE_PROJECT_NAME}_host02
-    hostname: ${COMPOSE_PROJECT_NAME}_host02
+    hostname: host02.example.local
+    networks:
+      default:
+        aliases:
+          - host02.example.local
   host03:
     <<: *host
-    container_name: ${COMPOSE_PROJECT_NAME}_host03
-    hostname: ${COMPOSE_PROJECT_NAME}_host03
-
-networks:
-  default:
-    name: ${COMPOSE_PROJECT_NAME}_test_local
+    hostname: host03.example.local
+    networks:
+      default:
+        aliases:
+          - host03.example.local

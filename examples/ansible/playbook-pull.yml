@@ -8,7 +8,7 @@
     #################################################################
     - name: download ca user public key
       ansible.builtin.uri:
-        url: http://ca_user/crypto/public
+        url: http://{{ ca_user }}/crypto/public
         return_content: true
       register: ca_user_pub_key
 
@@ -22,7 +22,7 @@
     #################################################################
     - name: download ca host public certificate
       ansible.builtin.uri:
-        url: http://ca_host/crypto/public
+        url: http://{{ ca_host }}/crypto/public
         return_content: true
       register: ca_host_pub_key
 
@@ -41,7 +41,7 @@
 
     - name: issue new ssh certificate
       ansible.builtin.shell: |
-        ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['fqdn'] }}@ca_host "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
+        ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['fqdn'] }}@{{ ca_host }} "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
       register: issue_certificate
 
     - name: restart sshd
