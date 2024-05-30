@@ -50,7 +50,7 @@ func main() {
 
 	config := &Config{}
 	if configFile != "" {
-		configData, err := os.ReadFile(authzmoduleFile)
+		configData, err := os.ReadFile(configFile)
 		if err != nil {
 			log.Fatal("Unable to load config-file: ", err)
 		}
@@ -58,6 +58,20 @@ func main() {
 		config, err = newConfig(configData)
 		if err != nil {
 			log.Fatal("Unable to load configuration: ", configFile)
+		}
+	}
+
+	var resolver *net.Resolver = nil
+
+	if config.ReverseLookupDns != "" {
+		resolver = &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{
+					Timeout: time.Millisecond * time.Duration(10000),
+				}
+				return d.DialContext(ctx, network, "dns:53")
+			},
 		}
 	}
 
@@ -254,8 +268,14 @@ func main() {
 			input["addr"] = addrport.Addr().String()
 
 			// Try to reverse-lookup remote addr
-			if addr, err := net.LookupAddr(input["addr"].(string)); err == nil {
-				input["addr"] = addr[0]
+			if resolver != nil {
+				if addr, err := resolver.LookupAddr(s.Context(), input["addr"].(string)); err == nil {
+					input["addr"] = addr[0]
+				}
+			} else {
+				if addr, err := net.LookupAddr(input["addr"].(string)); err == nil {
+					input["addr"] = addr[0]
+				}
 			}
 
 			// Policy Evalution

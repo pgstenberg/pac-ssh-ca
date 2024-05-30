@@ -35,6 +35,7 @@ type Config struct {
 	SshServer struct {
 		Addr string `yaml:"addr,omitempty"`
 	} `yaml:"ssh_server,omitempty"`
+	ReverseLookupDns string `yaml:"reverse_lookup_dns,omitempty"`
 }
 
 func newConfig(configData []byte) (*Config, error) {

@@ -30,7 +30,7 @@ allow if {
 }
 allow if {
     "host" in input.aud
-    input.sub == input.addr
+    trim_suffix(input.sub, ".") == trim_suffix(input.addr, ".")
     input.sub == input.username
 }
 
