@@ -41,7 +41,7 @@
 
     - name: issue new ssh certificate
       ansible.builtin.shell: |
-        ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['hostname'] }}.ansible_test_local.@ca_host "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
+        ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['fqdn'] }}@ca_host "$(cat /root/.ssh_ticket)" > /etc/ssh/ssh_host_rsa_key-cert.pub
       register: issue_certificate
 
     - name: restart sshd
