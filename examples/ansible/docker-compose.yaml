@@ -17,6 +17,8 @@ services:
 
         USER user01
         WORKDIR /home/user01
+
+        RUN ssh-keygen -t rsa -a 2048 -N '' -f ~/.ssh/id_rsa
     stdin_open: true
     tty: true
     entrypoint: /bin/bash

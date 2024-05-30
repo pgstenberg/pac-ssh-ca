@@ -16,8 +16,8 @@
   - name: add ca host public key to known_hosts
     ansible.builtin.known_hosts:
       path: /root/.ssh/known_hosts
-      name: ca_host
-      key: "ca_host {{ ca_host_pub_key.content }}"
+      name: "{{ ca_host }}"
+      key: "{{ ca_host }} {{ ca_host_pub_key.content }}"
     delegate_to: localhost
     run_once: True
 
@@ -26,7 +26,7 @@
     #################################################################
   - name: issue host ticket
     ansible.builtin.shell: |
-      ssh -tt {{ ansible_facts['fqdn'] }}@ca_host
+      ssh -tt {{ ansible_facts['fqdn'] }}@{{ ca_host }}
     delegate_to: localhost
     register: ticket
 
