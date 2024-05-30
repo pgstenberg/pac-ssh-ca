@@ -9,7 +9,6 @@ type AuthorizationResult struct {
 	CriticalOptions map[string]string
 	Extensions      map[string]string
 	ValidBefore     uint64
-	ValidAfter      uint64
 }
 
 type AuthorizationInput map[string]interface{}

@@ -310,7 +310,7 @@ func main() {
 				Key:             s.PublicKey(),
 				ValidPrincipals: result.ValidPrincipals,
 				Permissions:     permissions,
-				ValidAfter:      result.ValidAfter,
+				ValidAfter:      uint64(time.Now().Unix()),
 				ValidBefore:     result.ValidBefore,
 			}
 
@@ -319,6 +319,12 @@ func main() {
 				s.Exit(4)
 				return
 			}
+
+			log.Printf("new certificate issued; principal=%s, fingerprint=%s, expires=%s",
+				result.ValidPrincipals,
+				cryptossh.FingerprintSHA256(cert.Key),
+				time.Unix(int64(result.ValidBefore), 0),
+			)
 
 			io.WriteString(s, string(cryptossh.MarshalAuthorizedKey(cert)))
 			s.Exit(0)

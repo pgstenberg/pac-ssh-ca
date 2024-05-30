@@ -38,8 +38,14 @@ validprincipals = [
 	input.sub
 ] if allow
 
-validafter = input.nbf if allow
-validbefore = input.exp if allow
+validbefore = input.exp if {
+    allow
+    "user" in input.aud
+}
+validbefore = floor(((time.now_ns() + time.parse_duration_ns("15m")) / 1000000000)) if {
+    allow
+    "host" in input.aud
+}
 
 extensions = {
 	"permit-X11-forwarding":   "",
@@ -67,7 +73,6 @@ func newOpenPolicyAgentEngine(regoModule []byte, ctx context.Context) (*openPoli
 		co = data.ssh.authz.criticaloptions
 		co = data.ssh.authz.criticaloptions
 		vb = data.ssh.authz.validbefore
-		va = data.ssh.authz.validafter
 		`),
 		rego.Module("ssh.authz.rego", string(regoModule)),
 	).PrepareForEval(ctx)
@@ -110,11 +115,10 @@ func (engine *openPolicyAgentEngine) Authorize(ctx context.Context, input map[st
 		extensions[k] = outExtensions[k].(string)
 	}
 
-	if results[0].Bindings["va"] == nil || results[0].Bindings["vb"] == nil {
+	if results[0].Bindings["vb"] == nil {
 		return nil, fmt.Errorf("evaluation failed, result: %#v", results)
 	}
 
-	validAfter, _ := results[0].Bindings["va"].(json.Number).Int64()
 	validBefore, _ := results[0].Bindings["vb"].(json.Number).Int64()
 
 	return &AuthorizationResult{
@@ -122,6 +126,5 @@ func (engine *openPolicyAgentEngine) Authorize(ctx context.Context, input map[st
 		CriticalOptions: criticalOptions,
 		Extensions:      extensions,
 		ValidBefore:     uint64(validBefore),
-		ValidAfter:      uint64(validAfter),
 	}, nil
 }
