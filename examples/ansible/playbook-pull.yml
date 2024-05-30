@@ -47,7 +47,7 @@
     - name: create a cron job for issuing new ssh certificate
       ansible.builtin.cron:
         name: issue ssh host certificate
-        minute: "1"
+        minute: "*/1"
         user: root
         job: |
           o=$(ssh -i /etc/ssh/ssh_host_rsa_key {{ ansible_facts['fqdn'] }}@{{ ca_host }} "$(cat /root/.ssh_ticket)") && echo "$o" > /etc/ssh/ssh_host_rsa_key-cert.pub
