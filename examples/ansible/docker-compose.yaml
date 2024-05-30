@@ -283,32 +283,31 @@ services:
 
         RUN cat <<'EOF' >> /etc/supervisor/conf.d/supervisord.conf
         [supervisord]
+        user=root
         nodaemon=true
-        logfile=/dev/stdout
-        logfile_maxbytes=0
 
         [program:cron]
         command=/usr/sbin/cron -f
-        stdout_logfile=/dev/stdout
+        stdout_logfile=/dev/fd/1
         stdout_logfile_maxbytes=0
         redirect_stderr=true
         autorestart=true
 
         [program:sshd]
         command=/usr/sbin/sshd -D -e
-        stdout_logfile=/dev/stdout
+        stdout_logfile=/dev/fd/1
         stdout_logfile_maxbytes=0
         redirect_stderr=true
         autorestart=true
 
         [program:ansible-pull]
         command = ansible-pull -U https://github.com/pgstenberg/oidc-ssh-ca.git examples/ansible/playbook-pull.yml
-        stdout_logfile=/dev/stdout
+        stdout_logfile=/dev/fd/1
         stdout_logfile_maxbytes=0
         redirect_stderr=true
         startsecs = 0
+        startretries = 1    
         autorestart = false
-        startretries = 1        
         EOF
 
         RUN mkdir -p /run/sshd
