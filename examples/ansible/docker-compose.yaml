@@ -52,6 +52,7 @@ services:
       - /bin/bash
       - -c
       - |
+        rm -f /etc/hosts.d/docker
         echo $(dig host01 +short) host01.example.local >> /etc/hosts.d/docker
         echo $(dig host02 +short) host02.example.local >> /etc/hosts.d/docker
         echo $(dig host03 +short) host03.example.local >> /etc/hosts.d/docker
