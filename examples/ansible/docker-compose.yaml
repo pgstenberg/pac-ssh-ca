@@ -141,9 +141,12 @@ services:
         COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
 
         RUN apt update && \
-          apt install -y curl
+          apt install -y curl wget
 
-        COPY ./examples/ansible/id_rsa.pub /delegate_id_rsa.pub
+        RUN wget https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 -O /usr/bin/yq \ 
+          && chmod +x /usr/bin/yq
+
+        COPY ./examples/ansible/delegate_id_rsa.pub /delegate_id_rsa.pub
 
         RUN cat <<EOF >> /config.yml
         reverse_lookup_dns: dns
@@ -224,8 +227,8 @@ services:
 
         RUN python3 -m pip install ansible --break-system-packages
 
-        COPY id_rsa /root/.ssh/
-        COPY id_rsa.pub /root/.ssh/
+        COPY ./delegate_id_rsa /root/.ssh/id_rsa
+        COPY ./delegate_id_rsa.pub /root/.ssh/id_rsa.pub
 
         RUN mkdir -p /etc/ansible
         RUN cat <<'EOF' >> /etc/ansible/ansible.cfg
@@ -278,7 +281,7 @@ services:
 
         RUN python3 -m pip install ansible --break-system-packages
 
-        COPY id_rsa.pub /root/.ssh/authorized_keys
+        COPY ./delegate_id_rsa.pub /root/.ssh/authorized_keys
 
         RUN useradd -s /bin/bash -d /home/user01 -m -G sudo user01
 

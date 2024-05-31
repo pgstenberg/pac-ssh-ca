@@ -1,5 +1,9 @@
 
+ssh-keygen -t rsa -a 2048 -N '' -f ./delegate_id_rsa
 
+docker-compose exec ca-host bash -c "K='$(cat ./delegate_id_rsa.pub)' yq e -i '.delegation.delegates=[strenv(K)]' ./config.yml"
+docker-compose exec ca-host bash -c "yq e -i '.delegation.delegates=[]' ./config.yml"
+docker-compose restart ca-host
 
 `docker-compose run user`
 ```bash
