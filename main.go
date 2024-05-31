@@ -52,12 +52,12 @@ func main() {
 	if configFile != "" {
 		configData, err := os.ReadFile(configFile)
 		if err != nil {
-			log.Fatal("Unable to load config-file: ", err)
+			log.Fatalf("Unable to load config-file: %s", err)
 		}
 
 		config, err = newConfig(configData)
 		if err != nil {
-			log.Fatal("Unable to load configuration: ", configFile)
+			log.Fatalf("Unable to create configuration: %s, err: %s", configFile, err)
 		}
 	}
 
@@ -156,7 +156,8 @@ func main() {
 						}
 
 						if err := jsonMarshalUnmarshal[jwt.MapClaims](&HostTicket{
-							jwt.RegisteredClaims{
+							DelegateFingerprint: cryptossh.FingerprintSHA256(*delegate),
+							RegisteredClaims: jwt.RegisteredClaims{
 								Subject:   s.User(),
 								Audience:  jwt.ClaimStrings{AUD_HOST},
 								NotBefore: jwt.NewNumericDate(t0),
@@ -258,6 +259,7 @@ func main() {
 			}
 
 			input["username"] = s.User()
+			input["delegate_fingerprints"] = ca.delegateFingerprints()
 			input["fingerprint"] = cryptossh.FingerprintSHA256(s.PublicKey())
 			addrport, err := netip.ParseAddrPort(s.RemoteAddr().String())
 			if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/ssh"
+	cryptossh "golang.org/x/crypto/ssh"
 )
 
 type certificateAuthority struct {
@@ -29,6 +30,14 @@ func loadDelegates(delegates [][]byte) ([]*ssh.PublicKey, error) {
 	}
 
 	return list, nil
+}
+
+func (ca *certificateAuthority) delegateFingerprints() []string {
+	delegateFingerprints := []string{}
+	for _, delegate := range ca.delegates {
+		delegateFingerprints = append(delegateFingerprints, cryptossh.FingerprintSHA256(*delegate))
+	}
+	return delegateFingerprints
 }
 
 func newCertificateAuthority(privatekey []byte, delegates [][]byte) (*certificateAuthority, error) {

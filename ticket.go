@@ -11,5 +11,6 @@ type UserTicket struct {
 }
 
 type HostTicket struct {
+	DelegateFingerprint string `json:"delegate_fingerprint"`
 	jwt.RegisteredClaims
 }

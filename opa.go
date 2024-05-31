@@ -32,6 +32,7 @@ allow if {
     "host" in input.aud
     trim_suffix(input.sub, ".") == trim_suffix(input.addr, ".")
     input.sub == input.username
+	input.delegate_fingerprint in input.delegate_fingerprints
 }
 
 validprincipals = [

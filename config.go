@@ -54,7 +54,7 @@ func newConfig(configData []byte) (*Config, error) {
 	}
 
 	// Check if config is sufficient
-	if len(config.Delegation.Delegates) == 0 &&
+	if config.Delegation.TicketTimeToLive == "" &&
 		// Check Required Fields for OIDC Federation
 		(config.Federation.OpenIdConnect.Issuer == "" ||
 			config.Federation.OpenIdConnect.ClientId == "" ||
