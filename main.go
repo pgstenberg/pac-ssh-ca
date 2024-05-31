@@ -8,9 +8,7 @@ import (
 	"flag"
 	"io"
 	"log"
-	"net"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
@@ -61,19 +59,7 @@ func main() {
 		}
 	}
 
-	var resolver *net.Resolver = nil
-
-	if config.ReverseLookupDns != "" {
-		resolver = &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := net.Dialer{
-					Timeout: time.Millisecond * time.Duration(10000),
-				}
-				return d.DialContext(ctx, network, "dns:53")
-			},
-		}
-	}
+	var resolver *resolver = newResolver(config.ReverseLookupDns)
 
 	policyEngine, err := newOpenPolicyAgentEngine([]byte(DEFAULT_OPA_REGO), context.Background())
 	if err != nil {
@@ -261,23 +247,11 @@ func main() {
 			input["username"] = s.User()
 			input["delegate_fingerprints"] = ca.delegateFingerprints()
 			input["fingerprint"] = cryptossh.FingerprintSHA256(s.PublicKey())
-			addrport, err := netip.ParseAddrPort(s.RemoteAddr().String())
+			input["addr"], err = resolver.reverseLookup(s.Context(), s.RemoteAddr().String())
 			if err != nil {
-				log.Printf("unable to determine required remoteaddr: %s", err)
+				log.Printf("failure occured during reverselookup: %s", err)
 				s.Exit(5)
 				return
-			}
-			input["addr"] = addrport.Addr().String()
-
-			// Try to reverse-lookup remote addr
-			if resolver != nil {
-				if addr, err := resolver.LookupAddr(s.Context(), input["addr"].(string)); err == nil {
-					input["addr"] = addr[0]
-				}
-			} else {
-				if addr, err := net.LookupAddr(input["addr"].(string)); err == nil {
-					input["addr"] = addr[0]
-				}
 			}
 
 			// Policy Evalution
