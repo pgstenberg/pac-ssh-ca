@@ -5,7 +5,7 @@ docker-compose exec ca-host bash -c "K='$(cat ./delegate_id_rsa.pub)' yq e -i '.
 docker-compose exec ca-host bash -c "yq e -i '.delegation.delegates=[]' ./config.yml"
 docker-compose restart ca-host
 
-`docker-compose run user`
+`docker-compose run client`
 ```bash
 echo "@cert-authority *.example.local $(curl -s http://host.ca.example.local/crypto/public)" >> .ssh/known_hosts
 echo "user.ca.example.local $(curl -s http://user.ca.example.local/crypto/public)" >> .ssh/known_hosts

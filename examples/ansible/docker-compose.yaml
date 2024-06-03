@@ -4,7 +4,7 @@ services:
 # Container used to test SSH as a "user"
 #
 
-  user:
+  client:
     build:
       context: .
       dockerfile_inline: |
@@ -22,16 +22,12 @@ services:
     stdin_open: true
     tty: true
     entrypoint: /bin/bash
-    profiles: 
-      - user
 
 #
 # DNS used for reverse DNS lookups in host CA
 #
 
   dns:
-    profiles: 
-      - core
     build:
       context: .
       dockerfile_inline: |
@@ -70,8 +66,6 @@ services:
 #
 
   idp:
-    profiles: 
-      - core
     build:
       context: .
       dockerfile_inline: |
@@ -94,7 +88,7 @@ services:
           level: "debug"
 
         staticClients:
-          - id: oidc-ssh-ca
+          - id: simple-ssh-ca
             redirectURIs:
               - "http://127.0.0.1:8080/oauth/v2/callback"
             name: "OpenID Connect SSH CA"
@@ -122,8 +116,6 @@ services:
 #
 
   ca-host:
-    profiles: 
-      - core
     build:
       context: ../../
       dockerfile_inline: |
@@ -135,10 +127,10 @@ services:
         # Download Go modules
         RUN go mod download
         # Build
-        RUN CGO_ENABLED=0 GOOS=linux go build -o ./oidc-ssh-ca .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o ./simple-ssh-ca .
 
         FROM ubuntu:noble
-        COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
+        COPY --from=0 /build/simple-ssh-ca /bin/simple-ssh-ca
 
         RUN apt update && \
           apt install -y curl wget
@@ -156,7 +148,7 @@ services:
             - $(cat /delegate_id_rsa.pub)
         EOF
 
-    command: /bin/oidc-ssh-ca --config /config.yml
+    command: /bin/simple-ssh-ca --config /config.yml
     healthcheck:
       test: curl --fail http://localhost/crypto/public || exit 1
     networks:
@@ -165,8 +157,6 @@ services:
           - host.ca.example.local
 
   ca-user:
-    profiles: 
-      - core
     build:
       context: ../../
       dockerfile_inline: |
@@ -178,10 +168,10 @@ services:
         # Download Go modules
         RUN go mod download
         # Build
-        RUN CGO_ENABLED=0 GOOS=linux go build -o ./oidc-ssh-ca .
+        RUN CGO_ENABLED=0 GOOS=linux go build -o ./simple-ssh-ca .
 
         FROM ubuntu:noble
-        COPY --from=0 /build/oidc-ssh-ca /bin/oidc-ssh-ca
+        COPY --from=0 /build/simple-ssh-ca /bin/simple-ssh-ca
 
         RUN apt update && \
           apt install -y curl
@@ -192,7 +182,7 @@ services:
             state_ttl: 5m
             issuer: "http://127.0.0.1.nip.io:5556/dex"
             principal_claim: name
-            client_id: oidc-ssh-ca
+            client_id: simple-ssh-ca
             client_secret: ZXhhbXBsZS1hcHAtc2VjcmV0
             redirect_uri: "http://127.0.0.1:8080/oauth/v2/callback"
             scopes:
@@ -201,7 +191,7 @@ services:
               - profile
         EOF
 
-    command: /bin/oidc-ssh-ca --config /config.yml
+    command: /bin/simple-ssh-ca --config /config.yml
     healthcheck:
       test: curl --fail http://localhost/crypto/public || exit 1
     ports:
@@ -215,8 +205,6 @@ services:
 #
 
   ansible-master:
-    profiles: 
-      - core
     build:
       context: .
       dockerfile_inline: |
@@ -269,8 +257,6 @@ services:
 
   host01:
     &host
-    profiles:
-      - core
     build:
       context: .
       dockerfile_inline: |
@@ -305,7 +291,7 @@ services:
         autorestart=true
 
         [program:ansible-pull]
-        command = ansible-pull -U https://github.com/pgstenberg/oidc-ssh-ca.git examples/ansible/playbook-pull.yml
+        command = ansible-pull -U https://github.com/pgstenberg/simple-ssh-ca.git examples/ansible/playbook-pull.yml
         stdout_logfile=/dev/fd/1
         stdout_logfile_maxbytes=0
         redirect_stderr=true
