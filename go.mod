@@ -1,6 +1,6 @@
 module github.com/pgstenberg/oidc-ssh-ca
 
-go 1.21.4
+go 1.21
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
