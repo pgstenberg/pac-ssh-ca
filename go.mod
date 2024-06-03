@@ -1,4 +1,4 @@
-module github.com/pgstenberg/oidc-ssh-ca
+module github.com/pgstenberg/simple-ssh-ca
 
 go 1.21
 
