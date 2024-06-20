@@ -6,7 +6,25 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"net"
 )
+
+func addrToPort(addr string) (int, error) {
+	tcpAddr, err := net.ResolveTCPAddr("", addr)
+	if err != nil {
+		return 0, err
+	}
+
+	return tcpAddr.Port, nil
+}
+func generateSshCommand(user string, host string, port int, command string) string {
+	if port == 22 {
+		return fmt.Sprintf("ssh %s@%s '%s'", user, host, command)
+	}
+
+	return fmt.Sprintf("ssh %s@%s -p %d '%s'", user, host, port, command)
+}
 
 func jsonMarshalUnmarshal[T any](value any, target *T) error {
 	inrec, err := json.Marshal(value)

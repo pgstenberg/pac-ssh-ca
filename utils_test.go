@@ -1,8 +1,54 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"math/rand"
 	"testing"
 )
+
+func randomPort() int {
+	p := rand.Intn(65535)
+	if p != 22 {
+		return p
+	}
+	return randomPort()
+}
+
+func TestAddrToPort(t *testing.T) {
+
+	p0 := randomPort()
+
+	p, err := addrToPort(fmt.Sprintf("127.0.0.1:%d", p0))
+
+	if err != nil {
+		t.Fatalf("error: %s", err)
+	}
+
+	if p != p0 {
+		t.Fatalf("port %d, did not match expected port %d", p, p0)
+	}
+}
+
+func TestGenerateSshCommandPort22(t *testing.T) {
+	cmd := generateSshCommand("user", "host", 22, "foobar")
+	t.Logf("cmd=%s", cmd)
+}
+func TestGenerateSshCommandNonePort22(t *testing.T) {
+
+	p := randomPort()
+
+	expectedCmd := fmt.Sprintf("ssh user@host -p %d 'foobar'", p)
+	cmd := generateSshCommand("user", "host", p, "foobar")
+
+	log.Printf("expectedCmd=%s", expectedCmd)
+	log.Printf("cmd=%s", cmd)
+
+	if expectedCmd != cmd {
+		log.Fatalf("[%s] did not match [%s]", cmd, expectedCmd)
+	}
+
+}
 
 func TestJsonMarshalUnmarshal(t *testing.T) {
 

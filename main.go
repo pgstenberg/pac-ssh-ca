@@ -29,13 +29,6 @@ func main() {
 		AUD_STATE = "state"
 	)
 
-	issuer, err := os.Hostname()
-	if err != nil {
-		log.Fatal("Unable to determine issuer based on hostname: ", err)
-	}
-
-	log.Printf("Successfully setup token issuer: %s", issuer)
-
 	var privatekeyFile string
 	var configFile string
 	var authzmoduleFile string
@@ -58,6 +51,16 @@ func main() {
 			log.Fatalf("Unable to create configuration: %s, err: %s", configFile, err)
 		}
 	}
+
+	issuer, err := os.Hostname()
+	if err != nil {
+		log.Fatal("Unable to determine issuer based on hostname: ", err)
+	}
+	if config.Issuer != "" {
+		issuer = config.Issuer
+	}
+
+	log.Printf("Successfully setup token issuer: %s", issuer)
 
 	var resolver *resolver = newResolver(config.ReverseLookupDns)
 
@@ -416,7 +419,21 @@ func main() {
 			return
 		}
 
-		io.WriteString(w, s)
+		// Generate ssh command for the user
+		cmd := generateSshCommand(principalClaim, issuer, 22, s)
+		if config.SshServer.Addr != "" {
+			if p, err := addrToPort(config.SshServer.Addr); err == nil {
+				cmd = generateSshCommand(principalClaim, issuer, p, s)
+			}
+		}
+
+		if err := generatePage(w, cmd); err != nil {
+			log.Printf("unable to generate template, err: %s", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		//io.WriteString(w, cmd)
 	})
 	muxHttpService.HandleFunc(pat.Get("/crypto/public"), func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, presentedPublicKey)

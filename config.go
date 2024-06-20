@@ -9,6 +9,7 @@ import (
 
 // Config struct for webapp config
 type Config struct {
+	Issuer     string `yaml:"issuer,omitempty"`
 	Federation struct {
 		OpenIdConnect struct {
 			StateTimeToLive string   `yaml:"state_ttl,omitempty"`
