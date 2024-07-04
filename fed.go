@@ -11,6 +11,7 @@ import (
 
 type state struct {
 	Fingerprint string `json:"fingerprint"`
+	KeyFormat   string `json:"key_format"`
 	jwt.RegisteredClaims
 }
 

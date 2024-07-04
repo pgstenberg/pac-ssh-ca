@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -174,6 +175,9 @@ func main() {
 					}
 				}
 
+				fmt.Println("TYPE:")
+				fmt.Println(s.PublicKey().Type())
+
 				// Otherwise we create a new authorization request for openid-connect federated login for users
 				federation, err := getFederationInstance(s.Context(), config)
 				if err != nil {
@@ -193,6 +197,7 @@ func main() {
 
 				if err := jsonMarshalUnmarshal[jwt.MapClaims](state{
 					Fingerprint: cryptossh.FingerprintSHA256(s.PublicKey()),
+					KeyFormat:   s.PublicKey().Type(),
 					RegisteredClaims: jwt.RegisteredClaims{
 						Subject:   s.User(),
 						NotBefore: jwt.NewNumericDate(t0),
@@ -420,20 +425,18 @@ func main() {
 		}
 
 		// Generate ssh command for the user
-		cmd := generateSshCommand(principalClaim, issuer, 22, s)
+		cmd := generateSshCommand(principalClaim, issuer, 22, s, expectedIdentityFilePath(state.KeyFormat))
 		if config.SshServer.Addr != "" {
 			if p, err := addrToPort(config.SshServer.Addr); err == nil {
-				cmd = generateSshCommand(principalClaim, issuer, p, s)
+				cmd = generateSshCommand(principalClaim, issuer, p, s, expectedIdentityFilePath(state.KeyFormat))
 			}
 		}
 
-		if err := generatePage(w, cmd); err != nil {
+		if err := generatePage(w, cmd, expectedIdentityFilePath(state.KeyFormat)); err != nil {
 			log.Printf("unable to generate template, err: %s", err)
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-
-		//io.WriteString(w, cmd)
 	})
 	muxHttpService.HandleFunc(pat.Get("/crypto/public"), func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, presentedPublicKey)

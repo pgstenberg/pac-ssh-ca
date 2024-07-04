@@ -30,16 +30,17 @@ func TestAddrToPort(t *testing.T) {
 	}
 }
 
-func TestGenerateSshCommandPort22(t *testing.T) {
-	cmd := generateSshCommand("user", "host", 22, "foobar")
+func TestGenerateDefaultSshCommand(t *testing.T) {
+	cmd := generateSshCommand("user", "host", 22, "foobar", "~/.ssh/id_rsa")
 	t.Logf("cmd=%s", cmd)
 }
-func TestGenerateSshCommandNonePort22(t *testing.T) {
+func TestGenerateSshCommandNonePort22NoneRSAIdentityFile(t *testing.T) {
 
 	p := randomPort()
+	identityFilePath := "~/.ssh/id_ed25519"
 
-	expectedCmd := fmt.Sprintf("ssh user@host -p %d 'foobar'", p)
-	cmd := generateSshCommand("user", "host", p, "foobar")
+	expectedCmd := fmt.Sprintf("ssh -i %s -p %d user@host 'foobar'", identityFilePath, p)
+	cmd := generateSshCommand("user", "host", p, "foobar", identityFilePath)
 
 	log.Printf("expectedCmd=%s", expectedCmd)
 	log.Printf("cmd=%s", cmd)

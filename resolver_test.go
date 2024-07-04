@@ -10,17 +10,19 @@ import (
 
 func TestReverseLookup(t *testing.T) {
 	resolver := newResolver("")
-	ctx := context.Background()
 
-	const domain = "google.se"
+	const domain = "localhost"
 
 	ips, _ := net.LookupIP(domain)
+
+	if len(ips) == 0 {
+		t.Fatalf("no ips returned from lookup %s", domain)
+	}
 
 	for _, ip := range ips {
 		if ipv4 := ip.To4(); ipv4 != nil {
 			t.Logf("%s resolved to %s", domain, ip)
-
-			reverseLookupDomain, err := resolver.reverseLookup(ctx, fmt.Sprintf("%s:443", ip))
+			reverseLookupDomain, err := resolver.reverseLookup(context.Background(), fmt.Sprintf("%s:443", ip))
 			if err != nil {
 				t.Fatalf("error occured during reverselookup; %s", err)
 			}

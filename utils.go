@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"regexp"
 )
 
 func addrToPort(addr string) (int, error) {
@@ -18,12 +19,32 @@ func addrToPort(addr string) (int, error) {
 
 	return tcpAddr.Port, nil
 }
-func generateSshCommand(user string, host string, port int, command string) string {
+func generateSshCommand(user string, host string, port int, command string, identityFilePath string) string {
+
+	strPort := fmt.Sprintf("-p %d", port)
+	strIdentityFilePath := fmt.Sprintf("-i %s", identityFilePath)
+
 	if port == 22 {
-		return fmt.Sprintf("ssh %s@%s '%s'", user, host, command)
+		strPort = ""
+	}
+	if identityFilePath == "~/.ssh/id_rsa" {
+		strIdentityFilePath = ""
 	}
 
-	return fmt.Sprintf("ssh %s@%s -p %d '%s'", user, host, port, command)
+	return regexp.MustCompile(`\s+`).ReplaceAllString(fmt.Sprintf("ssh %s %s %s@%s '%s'", strIdentityFilePath, strPort, user, host, command), " ")
+}
+func expectedIdentityFilePath(keyFormat string) string {
+
+	switch keyFormat {
+	case "ssh-rsa":
+		return "~/.ssh/id_rsa"
+	case "ssh-ed25519":
+		return "~/.ssh/id_ed25519"
+	case "ecdsa-sha2-nistp256":
+		return "~/.ssh/id_ecdsa"
+	}
+
+	return ""
 }
 
 func jsonMarshalUnmarshal[T any](value any, target *T) error {
