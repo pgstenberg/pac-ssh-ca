@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -174,9 +173,6 @@ func main() {
 						return
 					}
 				}
-
-				fmt.Println("TYPE:")
-				fmt.Println(s.PublicKey().Type())
 
 				// Otherwise we create a new authorization request for openid-connect federated login for users
 				federation, err := getFederationInstance(s.Context(), config)
