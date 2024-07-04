@@ -141,6 +141,7 @@ services:
         COPY ./examples/ansible/delegate_id_rsa.pub /delegate_id_rsa.pub
 
         RUN cat <<EOF >> /config.yml
+        issuer: host.ca.example.local
         reverse_lookup_dns: dns
         delegation:
           ticket_ttl: 8760h
@@ -177,6 +178,7 @@ services:
           apt install -y curl
 
         RUN cat <<EOF >> /config.yml
+        issuer: user.ca.example.local
         federation:
           openid_connect:
             state_ttl: 5m
