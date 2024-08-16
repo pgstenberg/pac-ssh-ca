@@ -97,7 +97,7 @@ services:
         enablePasswordDB: true
 
         staticPasswords:
-          - email: "user01@example.com"
+          - email: "user01@example.local"
             username: "user01"
             # Password1
             hash: "$$2y$$10$$50oFGLcRAgLyW99g4yQ5dOdXpBI7ExqcTsJolXt3xxXm9QzdxR/y2"

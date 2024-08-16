@@ -1,6 +1,6 @@
-# WORK IN PROGRESS
+# Simple SSH CA
 
-## Issue Host Certificates
+## Host Certificates
 
 ```mermaid
 sequenceDiagram
@@ -26,7 +26,7 @@ sequenceDiagram
     deactivate Host
 ```
 
-## Issue User Certificates
+## User Certificates
 
 ```mermaid
 sequenceDiagram
@@ -41,10 +41,10 @@ sequenceDiagram
     deactivate CA
     User->>OIDCP: Login
     activate OIDCP
+    Note over User,OIDCP: Web Browser (SSO)
     OIDCP-->>CA: Identity
     deactivate OIDCP
     activate CA
-    Note over OIDCP,CA: fa:fa-shield Simplified OAuth2
     CA-->>User: Ticket (State bound)
     User->>CA: Ticket + Public Key
     Note right of CA: Policy Enforcement
@@ -52,3 +52,7 @@ sequenceDiagram
     deactivate CA
     deactivate User
 ```
+
+## Examples
+
+- [Ansible](examples/ansible/README.md)

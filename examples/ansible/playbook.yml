@@ -4,7 +4,7 @@
 
   tasks:
     #################################################################
-    # Certificate Authority - Host
+    # Certificate Authority - Host (Ansible Master)
     #################################################################
   - name: download ca host public key
     ansible.builtin.uri:
