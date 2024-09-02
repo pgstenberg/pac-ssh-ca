@@ -112,7 +112,6 @@ func TestPersistIdentityFilePathWithCookie(t *testing.T) {
 	if err := chromedp.Run(ctx,
 		chromedp.Navigate(server.URL),
 		chromedp.SetValue("#identity-file-path", customIdentityFilePath),
-		chromedp.Reload(),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			cookies, err := network.GetCookies().Do(ctx)
 			if err != nil {

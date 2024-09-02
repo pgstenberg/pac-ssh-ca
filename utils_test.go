@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"testing"
 )
@@ -42,11 +41,11 @@ func TestGenerateSshCommandNonePort22NoneRSAIdentityFile(t *testing.T) {
 	expectedCmd := fmt.Sprintf("ssh -i %s -p %d user@host 'foobar'", identityFilePath, p)
 	cmd := generateSshCommand("user", "host", p, "foobar", identityFilePath)
 
-	log.Printf("expectedCmd=%s", expectedCmd)
-	log.Printf("cmd=%s", cmd)
+	t.Logf("expectedCmd=%s", expectedCmd)
+	t.Logf("cmd=%s", cmd)
 
 	if expectedCmd != cmd {
-		log.Fatalf("[%s] did not match [%s]", cmd, expectedCmd)
+		t.Fatalf("[%s] did not match [%s]", cmd, expectedCmd)
 	}
 
 }
@@ -86,5 +85,11 @@ func TestStringSliceToBytes(t *testing.T) {
 	}
 	if string(bytes[1]) != "bar" {
 		t.Fatalf("bytes=%s, did not match %s", string(bytes[1]), "bar")
+	}
+}
+
+func TestIsJson(t *testing.T) {
+	if !isJson(`{"foo": "bar"}`) {
+		t.Fail()
 	}
 }

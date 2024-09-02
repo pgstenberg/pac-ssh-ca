@@ -57,7 +57,10 @@ func jsonMarshalUnmarshal[T any](value any, target *T) error {
 	}
 	return nil
 }
-
+func isJson(s string) bool {
+	var js map[string]interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
+}
 func stringSliceToBytes(target []string) [][]byte {
 	l := [][]byte{}
 	for _, v := range target {
