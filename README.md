@@ -2,6 +2,7 @@
 
 Simple SSH CA is a lightweight OpenSSH certificate authority written in golang.
 Simple SSH CA can issue both _user_ and _host_ certificate types according to the [openssh specification](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?rev=1.8) using a policy-based authorization control.
+
 Currently the following policy engines are supported.
 
 - [Open Policy Agent](https://www.openpolicyagent.org/)
@@ -19,6 +20,12 @@ The key components for a simple yet effective openssh certificate implementation
 - The client and hosts should **not** require any additional cli or tools to be installed.
 
 ## How it works
+
+Simple SSH CA works with the concept of `delegates` - delegating the signing of certificates to a list of trusted and known public-keys (delegates).
+
+Requesting a public-key (certificate) to be signed can be done by simply ssh to the certificate authority (Simple SSH CA).
+
+**IF** the presented public-key is not present in the list of trusted delegates a new federated login will be performed to setup a new trust against the requesting client.
 
 ### Host Certificates
 
