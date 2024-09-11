@@ -9,23 +9,23 @@ Currently the following policy engines are supported.
 
 ## Motivation
 
-Using certificates for openssh is unarguably the safest way of handling ssh permissions.
-But issuing OpenSSH Certificates are hard, especially with a dedicated certificate authority.
-By creating an application that makes this process as simple and effective as possible will reduce the risk that the use of openssh certificate is ignored.
+Using certificates for openssh is unarguably the safest way to handle ssh access and permissions.
+But issuing certificates for ssh are often seen as hard and complicated, especially from a dedicated authority, which keeps certificates from even being introduced for ssh in the first place.
+By creating an application that makes the process of issuing certificates for ssh as simple and effective as possible will reduce the risk of ignoring certificates for ssh.
 
 The key components for a simple yet effective openssh certificate implementation:
 
-- The solution should be lightweight and stateless.
+- The solution should be lightweight, stateless and de-centralized for maximum availability and maintainability.
 - Existing solutions should be used in order to distribute and authorize the access.
-- The client and hosts should **not** require any additional cli or tools to be installed.
+- The client and hosts should not require any additional cli or tools to be installed, hence the standard SSH protocol should be used as the central authority mechanism.
 
 ## How it works
 
-Simple SSH CA works with the concept of `delegates` - delegating the signing of certificates to a list of trusted and known public-keys (delegates).
+Simple SSH CA works with the concept of `delegates` - delegating the signing of certificates to a list of trusted and known public-keys (delegates), and `tickets` - which can be used as proof to get public-keys (clients) signed by the authority.
 
-Requesting a public-key (certificate) to be signed can be done by simply ssh to the certificate authority (Simple SSH CA).
+Requesting a new ticket can be done by simply ssh to the certificate authority (Simple SSH CA). If the public-key presented by the client is not present in the list of trusted delegates a new federated login will be performed in order to identity the client as a trusted entity.
 
-**IF** the presented public-key is not present in the list of trusted delegates a new federated login will be performed to setup a new trust against the requesting client.
+Even though Simple SSH CA can technically be runned in both "user" and "host" mode, for security reason they should be configured and operated seperatly.
 
 ### Host Certificates
 
