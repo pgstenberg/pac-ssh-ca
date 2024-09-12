@@ -1,7 +1,7 @@
 # PaC (policy-as-code) SSH CA
 
 PaC (policy-as-code) SSH CA is a lightweight OpenSSH certificate authority written in golang.
-PaC SSH CA can issue both _user_ and _host_ certificate types according to the [openssh specification](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?rev=1.8) using a policy-based authorization control with code.
+PaC SSH CA can issue both _user_ and _host_ certificate types according to the [openssh specification](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?rev=1.8) using a code-driven policy-based authorization control.
 
 Currently the following policy engines are supported.
 
