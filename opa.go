@@ -208,5 +208,5 @@ func (engine *openPolicyAgentEngine) Authorize(ctx context.Context, input map[st
 
 	}
 
-	return nil, fmt.Errorf("failure during authorize in engine.")
+	return nil, fmt.Errorf("failure during authorize in engine")
 }
