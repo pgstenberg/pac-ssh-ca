@@ -1,7 +1,7 @@
-# Simple SSH CA
+# PaC SSH CA
 
-Simple SSH CA is a lightweight OpenSSH certificate authority written in golang.
-Simple SSH CA can issue both _user_ and _host_ certificate types according to the [openssh specification](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?rev=1.8) using a policy-based authorization control.
+PaC (policy-as-code) SSH CA is a lightweight OpenSSH certificate authority written in golang.
+PaC SSH CA can issue both _user_ and _host_ certificate types according to the [openssh specification](https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?rev=1.8) using a policy-based authorization control.
 
 Currently the following policy engines are supported.
 
@@ -21,11 +21,11 @@ The key components for a simple yet effective openssh certificate implementation
 
 ## How it works
 
-Simple SSH CA works with the concept of `delegates` - delegating the signing of certificates to a list of trusted and known public-keys (delegates), and `tickets` - which can be used as proof to get public-keys (clients) signed by the authority.
+PaC SSH CA works with the concept of `delegates` - delegating the signing of certificates to a list of trusted and known public-keys (delegates), and `tickets` - which can be used as proof to get public-keys (clients) signed by the authority.
 
-Requesting a new ticket can be done by simply ssh to the certificate authority (Simple SSH CA). If the public-key presented by the client is not present in the list of trusted delegates a new federated login will be performed in order to identity the client as a trusted entity.
+Requesting a new ticket can be done by simply ssh to the certificate authority (PaC SSH CA). If the public-key presented by the client is not present in the list of trusted delegates a new federated login will be performed in order to identity the client as a trusted entity.
 
-Even though Simple SSH CA can technically be runned in both "user" and "host" mode, for security reason they should be configured and operated seperatly.
+Even though PaC SSH CA can technically be runned in both "user" and "host" mode, for security reason they should be configured and operated seperatly.
 
 ### Host Certificates
 

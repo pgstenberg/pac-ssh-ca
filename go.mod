@@ -1,4 +1,4 @@
-module github.com/pgstenberg/simple-ssh-ca
+module github.com/pgstenberg/pac-ssh-ca
 
 go 1.21
 
